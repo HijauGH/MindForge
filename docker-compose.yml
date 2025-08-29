@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: mindforge_db
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - mindforge_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mindforge_api
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - mindforge_network
+    restart: unless-stopped
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    container_name: mindforge_bot
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      BOT_TOKEN: ${BOT_TOKEN}
+    volumes:
+      - ./bot:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - mindforge_network
+    restart: unless-stopped
+    command: python -m app.main
+
+  nginx:
+    image: nginx:alpine
+    container_name: mindforge_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./ssl:/etc/ssl/certs
+    depends_on:
+      - api
+    networks:
+      - mindforge_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  mindforge_network:
+    driver: bridge
