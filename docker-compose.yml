@@ -30,7 +30,9 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      MODE: ${MODE}
+      SECRET_KEY: ${SECRET_KEY}
     volumes:
       - ./backend:/app
     ports:
@@ -53,8 +55,9 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       BOT_TOKEN: ${BOT_TOKEN}
+      MODE: ${MODE}
     volumes:
       - ./bot:/app
     depends_on:
@@ -63,7 +66,7 @@ services:
     networks:
       - mindforge_network
     restart: unless-stopped
-    command: python -m app.main
+    command: python3 main.py
 
   nginx:
     image: nginx:alpine
